@@ -230,10 +230,10 @@ class Kitchen {
   }
 }
 
-/* ---------------- Lovable AI Gateway call ---------------- */
+/* ---------------- Lovable AI Gateway & Direct Gemini Call ---------------- */
 
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const MODEL = "google/gemini-2.5-flash";
+const GEMINI_DIRECT_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
 type ChatMessage =
   | { role: "system" | "user"; content: string }
@@ -244,11 +244,30 @@ async function callGemini(messages: ChatMessage[], useTools: boolean): Promise<{
   content: string | null;
   tool_calls: Array<{ id: string; name: string; args: { [k: string]: JsonValue } }>;
 }> {
-  const apiKey = process.env.LOVABLE_API_KEY;
-  if (!apiKey) throw new Error("LOVABLE_API_KEY is not configured");
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+  const lovableApiKey = process.env.LOVABLE_API_KEY;
+
+  const rawApiKey = geminiApiKey || lovableApiKey;
+  if (!rawApiKey) {
+    throw new Error("Neither GEMINI_API_KEY nor LOVABLE_API_KEY is configured in the environment.");
+  }
+
+  // Remove any spaces/whitespace that might have been copy-pasted accidentally
+  const apiKey = rawApiKey.replace(/\s+/g, "");
+
+  // Google AI Studio keys start with 'AIzaSy' or the newer 'AQ.' prefix.
+  const isNativeGemini = apiKey.startsWith("AIzaSy") || apiKey.startsWith("AQ.");
+
+  let url = GATEWAY_URL;
+  let modelName = "google/gemini-2.5-flash";
+
+  if (isNativeGemini) {
+    url = GEMINI_DIRECT_URL;
+    modelName = "gemini-2.5-flash";
+  }
 
   const body: Record<string, unknown> = {
-    model: MODEL,
+    model: modelName,
     messages,
     temperature: 0.3,
   };
@@ -257,42 +276,64 @@ async function callGemini(messages: ChatMessage[], useTools: boolean): Promise<{
     body.tool_choice = "auto";
   }
 
-  const res = await fetch(GATEWAY_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-  });
+  const maxRetries = 5;
+  let delay = 2000;
 
-  if (!res.ok) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (res.ok) {
+      const json = (await res.json()) as {
+        choices: Array<{
+          message: {
+            content: string | null;
+            tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }>;
+          };
+        }>;
+      };
+
+      const msg = json.choices?.[0]?.message;
+      const calls = (msg?.tool_calls ?? []).map((t) => {
+        let args: { [k: string]: JsonValue } = {};
+        try {
+          args = t.function.arguments ? (JSON.parse(t.function.arguments) as { [k: string]: JsonValue }) : {};
+        } catch {
+          args = {};
+        }
+        return { id: t.id, name: t.function.name, args };
+      });
+      return { content: msg?.content ?? null, tool_calls: calls };
+    }
+
     const text = await res.text();
-    if (res.status === 429) throw new Error("AI rate limit reached. Please try again shortly.");
-    if (res.status === 402) throw new Error("AI credits exhausted. Add credits in your workspace settings.");
+
+    if ((res.status === 429 || res.status === 503) && attempt < maxRetries) {
+      // Sleep with exponential backoff and retry
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      delay *= 2;
+      continue;
+    }
+
+    if (res.status === 429) {
+      throw new Error("AI rate limit reached. Please try again shortly.");
+    }
+    if (res.status === 503) {
+      throw new Error("Gemini model is currently experiencing high demand. Please try again in a few moments.");
+    }
+    if (res.status === 402) {
+      throw new Error("AI credits exhausted. Add credits in your workspace settings.");
+    }
     throw new Error(`AI gateway error ${res.status}: ${text.slice(0, 300)}`);
   }
 
-  const json = (await res.json()) as {
-    choices: Array<{
-      message: {
-        content: string | null;
-        tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }>;
-      };
-    }>;
-  };
-
-  const msg = json.choices?.[0]?.message;
-  const calls = (msg?.tool_calls ?? []).map((t) => {
-    let args: { [k: string]: JsonValue } = {};
-    try {
-      args = t.function.arguments ? (JSON.parse(t.function.arguments) as { [k: string]: JsonValue }) : {};
-    } catch {
-      args = {};
-    }
-    return { id: t.id, name: t.function.name, args };
-  });
-  return { content: msg?.content ?? null, tool_calls: calls };
+  throw new Error("Failed to call AI model after multiple retries due to rate limits or high demand.");
 }
 
 /* ---------------- Verification ---------------- */
@@ -370,6 +411,9 @@ Available tools: list_inventory, chop, grill, fry, toast, bake, boil, combine, s
 
     while (iter < MAX_ITERS && !kitchen.served) {
       iter++;
+      // Pace requests slightly to avoid hitting rate limits or high-demand spikes on the API
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      
       const { content, tool_calls } = await callGemini(messages, true);
 
       if (content && content.trim()) {
@@ -439,6 +483,11 @@ Available tools: list_inventory, chop, grill, fry, toast, bake, boil, combine, s
       servedDish: kitchen.served,
       success: verification.ok,
       verification,
-      model: MODEL,
+      model: (() => {
+        const key = (process.env.GEMINI_API_KEY || process.env.LOVABLE_API_KEY || "").replace(/\s+/g, "");
+        return key.startsWith("AIzaSy") || key.startsWith("AQ.")
+          ? "gemini-2.5-flash"
+          : "google/gemini-2.5-flash";
+      })(),
     };
   });
