@@ -3,9 +3,11 @@ import { z } from "zod";
 
 /* ---------------- Types ---------------- */
 
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
+
 export type CookStep =
   | { kind: "thought"; text: string }
-  | { kind: "tool_call"; tool: string; args: Record<string, unknown>; result: string; ok: boolean; inventoryAfter: string[] }
+  | { kind: "tool_call"; tool: string; args: { [k: string]: JsonValue }; result: string; ok: boolean; inventoryAfter: string[] }
   | { kind: "error"; message: string }
   | { kind: "final"; dish: string; verification: { ok: boolean; reason: string } };
 
@@ -173,7 +175,7 @@ class Kitchen {
     this.inventory.add(name.toLowerCase().trim());
   }
 
-  exec(tool: string, args: Record<string, unknown>): { ok: boolean; result: string } {
+  exec(tool: string, args: { [k: string]: JsonValue }): { ok: boolean; result: string } {
     const single = (key = "ingredient"): string => String(args[key] ?? "").toLowerCase().trim();
 
     switch (tool) {
@@ -240,7 +242,7 @@ type ChatMessage =
 
 async function callGemini(messages: ChatMessage[], useTools: boolean): Promise<{
   content: string | null;
-  tool_calls: Array<{ id: string; name: string; args: Record<string, unknown> }>;
+  tool_calls: Array<{ id: string; name: string; args: { [k: string]: JsonValue } }>;
 }> {
   const apiKey = process.env.LOVABLE_API_KEY;
   if (!apiKey) throw new Error("LOVABLE_API_KEY is not configured");
@@ -282,9 +284,9 @@ async function callGemini(messages: ChatMessage[], useTools: boolean): Promise<{
 
   const msg = json.choices?.[0]?.message;
   const calls = (msg?.tool_calls ?? []).map((t) => {
-    let args: Record<string, unknown> = {};
+    let args: { [k: string]: JsonValue } = {};
     try {
-      args = t.function.arguments ? JSON.parse(t.function.arguments) : {};
+      args = t.function.arguments ? (JSON.parse(t.function.arguments) as { [k: string]: JsonValue }) : {};
     } catch {
       args = {};
     }

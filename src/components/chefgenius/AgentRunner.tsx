@@ -18,7 +18,7 @@ export function AgentRunner() {
     setResult(null);
     try {
       const res = await run({ data: { order } });
-      setResult(res);
+      setResult(res as CookResult);
     } catch (e) {
       setError((e as Error).message);
     } finally {
