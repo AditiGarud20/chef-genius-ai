@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useScroll, useTransform, AnimatePresence, useInView, type Variants } from "framer-motion";
+import { AgentRunner } from "./AgentRunner";
+
 
 /* ---------- Shared bits ---------- */
 
@@ -1115,6 +1117,8 @@ export function ChefGeniusLanding() {
         <HowItThinks />
         <Kitchen />
         <Simulation />
+        <AgentRunner />
+
         <Neural />
         <StructuredOutputs />
         <Verification />
