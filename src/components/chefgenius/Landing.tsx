@@ -211,7 +211,7 @@ function Hero() {
               <SplitText
                 tag="span"
                 text="Cook Like"
-                className="block font-display font-semibold leading-[0.95] tracking-tight text-foreground text-[64px] sm:text-[88px] md:text-[120px] lg:text-[140px]"
+                className="block font-display font-semibold leading-[0.95] tracking-tight text-[#FF5A36] text-[64px] sm:text-[88px] md:text-[120px] lg:text-[140px]"
                 delay={40}
                 duration={0.8}
                 ease="power3.out"
@@ -225,7 +225,7 @@ function Hero() {
               <SplitText
                 tag="span"
                 text="a Human."
-                className="block font-display font-semibold leading-[0.95] tracking-tight italic gradient-text-rainbow text-[64px] sm:text-[88px] md:text-[120px] lg:text-[140px]"
+                className="block font-display font-semibold leading-[0.95] tracking-tight italic text-[#2196F3] text-[64px] sm:text-[88px] md:text-[120px] lg:text-[140px]"
                 delay={40}
                 duration={0.9}
                 ease="power3.out"

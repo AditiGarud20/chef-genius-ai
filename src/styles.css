@@ -220,6 +220,30 @@
     color: transparent;
     animation: hueShift 8s ease-in-out infinite;
   }
+  .text-red-gradient {
+    background: linear-gradient(135deg, #FF5A36, #FF1744);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  :is(.dark *) .text-red-gradient {
+    background: linear-gradient(135deg, #FF5A36, #FF1744);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .text-blue-gradient {
+    background: linear-gradient(135deg, #2196F3, #64B5F6);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  :is(.dark *) .text-blue-gradient {
+    background: linear-gradient(135deg, #2196F3, #64B5F6);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
   .animated-gradient-bg {
     background: var(--gradient-rainbow);
     background-size: 300% 300%;
