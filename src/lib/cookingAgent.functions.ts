@@ -259,11 +259,11 @@ async function callGemini(messages: ChatMessage[], useTools: boolean): Promise<{
   const isNativeGemini = apiKey.startsWith("AIzaSy") || apiKey.startsWith("AQ.");
 
   let url = GATEWAY_URL;
-  let modelName = "google/gemini-2.5-flash";
+  let modelName = "google/gemini-2.0-flash-lite";
 
   if (isNativeGemini) {
     url = GEMINI_DIRECT_URL;
-    modelName = "gemini-2.5-flash";
+    modelName = "gemini-2.0-flash-lite";
   }
 
   const body: Record<string, unknown> = {
@@ -504,8 +504,8 @@ Available tools: list_inventory, chop, grill, fry, toast, bake, boil, combine, s
       model: (() => {
         const key = (process.env.GEMINI_API_KEY || process.env.LOVABLE_API_KEY || "").replace(/\s+/g, "");
         return key.startsWith("AIzaSy") || key.startsWith("AQ.")
-          ? "gemini-2.5-flash"
-          : "google/gemini-2.5-flash";
+          ? "gemini-2.0-flash-lite"
+          : "google/gemini-2.0-flash-lite";
       })(),
     };
   });
