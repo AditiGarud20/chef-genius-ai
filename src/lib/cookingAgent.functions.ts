@@ -233,12 +233,82 @@ class Kitchen {
 /* ---------------- Lovable AI Gateway & Direct Gemini Call ---------------- */
 
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const GEMINI_DIRECT_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
 type ChatMessage =
   | { role: "system" | "user"; content: string }
   | { role: "assistant"; content: string | null; tool_calls?: Array<{ id: string; type: "function"; function: { name: string; arguments: string } }> }
   | { role: "tool"; tool_call_id: string; content: string };
+
+/* Convert OpenAI-style messages to Gemini native format */
+function toGeminiContents(messages: ChatMessage[]): {
+  systemInstruction?: { parts: Array<{ text: string }> };
+  contents: Array<{ role: string; parts: Array<Record<string, unknown>> }>;
+} {
+  let systemInstruction: { parts: Array<{ text: string }> } | undefined;
+  const contents: Array<{ role: string; parts: Array<Record<string, unknown>> }> = [];
+
+  for (const msg of messages) {
+    if (msg.role === "system") {
+      systemInstruction = { parts: [{ text: msg.content }] };
+      continue;
+    }
+    if (msg.role === "user") {
+      contents.push({ role: "user", parts: [{ text: msg.content }] });
+      continue;
+    }
+    if (msg.role === "assistant") {
+      const parts: Array<Record<string, unknown>> = [];
+      if (msg.content) parts.push({ text: msg.content });
+      if (msg.tool_calls?.length) {
+        for (const tc of msg.tool_calls) {
+          let args: Record<string, unknown> = {};
+          try { args = JSON.parse(tc.function.arguments) as Record<string, unknown>; } catch { args = {}; }
+          parts.push({ functionCall: { name: tc.function.name, args } });
+        }
+      }
+      if (parts.length) contents.push({ role: "model", parts });
+      continue;
+    }
+    if (msg.role === "tool") {
+      // tool results go as "function" role in Gemini native
+      const last = contents[contents.length - 1];
+      const part = { functionResponse: { name: "tool", response: { result: msg.content } } };
+      if (last?.role === "user") {
+        last.parts.push(part);
+      } else {
+        contents.push({ role: "user", parts: [part] });
+      }
+    }
+  }
+  return { systemInstruction, contents };
+}
+
+/* Native Gemini tool definition format — strip fields unsupported by Gemini API */
+function cleanParamsForGemini(params: Record<string, unknown>): Record<string, unknown> {
+  const cleaned: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(params)) {
+    // Gemini native does not support additionalProperties or minItems
+    if (k === "additionalProperties" || k === "minItems") continue;
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      cleaned[k] = cleanParamsForGemini(v as Record<string, unknown>);
+    } else if (Array.isArray(v)) {
+      cleaned[k] = v.map((item) =>
+        item && typeof item === "object" ? cleanParamsForGemini(item as Record<string, unknown>) : item
+      );
+    } else {
+      cleaned[k] = v;
+    }
+  }
+  return cleaned;
+}
+
+const GEMINI_NATIVE_TOOLS = [{
+  functionDeclarations: TOOL_DEFS.map((t) => ({
+    name: t.function.name,
+    description: t.function.description,
+    parameters: cleanParamsForGemini(t.function.parameters as Record<string, unknown>),
+  })),
+}];
 
 async function callGemini(messages: ChatMessage[], useTools: boolean): Promise<{
   content: string | null;
@@ -252,84 +322,96 @@ async function callGemini(messages: ChatMessage[], useTools: boolean): Promise<{
     throw new Error("Neither GEMINI_API_KEY nor LOVABLE_API_KEY is configured in the environment.");
   }
 
-  // Remove any spaces/whitespace that might have been copy-pasted accidentally
   const apiKey = rawApiKey.replace(/\s+/g, "");
-
-  // Google AI Studio keys start with 'AIzaSy' or the newer 'AQ.' prefix.
   const isNativeGemini = apiKey.startsWith("AIzaSy") || apiKey.startsWith("AQ.");
 
-  let url = GATEWAY_URL;
-  let modelName = "google/gemini-3.1-flash-lite";
-
-  if (isNativeGemini) {
-    url = GEMINI_DIRECT_URL;
-    modelName = "gemini-3.1-flash-lite";
-  }
-
-  const body: Record<string, unknown> = {
-    model: modelName,
-    messages,
-    temperature: 0.3,
-  };
-  if (useTools) {
-    body.tools = TOOL_DEFS;
-    body.tool_choice = "auto";
-  }
-
-  const maxRetries = 4;
-  let delay = 5000;
+  const maxRetries = 3;
+  let delay = 15000;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
+    let res: Response;
 
-    if (res.ok) {
-      const json = (await res.json()) as {
-        choices: Array<{
-          message: {
-            content: string | null;
-            tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }>;
-          };
-        }>;
+    if (isNativeGemini) {
+      // Use native Gemini REST API — fully supports tool calls for Gemini 3.1
+      const modelName = "gemini-3.1-flash-lite";
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+      const { systemInstruction, contents } = toGeminiContents(messages);
+      const nativeBody: Record<string, unknown> = {
+        contents,
+        generationConfig: { temperature: 0.3, thinkingConfig: { thinkingBudget: 0 } },
       };
-
-      const msg = json.choices?.[0]?.message;
-      const calls = (msg?.tool_calls ?? []).map((t) => {
-        let args: { [k: string]: JsonValue } = {};
-        try {
-          args = t.function.arguments ? (JSON.parse(t.function.arguments) as { [k: string]: JsonValue }) : {};
-        } catch {
-          args = {};
-        }
-        return { id: t.id, name: t.function.name, args };
+      if (systemInstruction) nativeBody.systemInstruction = systemInstruction;
+      if (useTools) {
+        nativeBody.tools = GEMINI_NATIVE_TOOLS;
+        nativeBody.toolConfig = { functionCallingConfig: { mode: "AUTO" } };
+      }
+      res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nativeBody),
       });
-      return { content: msg?.content ?? null, tool_calls: calls };
+
+      if (res.ok) {
+        const json = (await res.json()) as {
+          candidates: Array<{
+            content: { parts: Array<{ text?: string; functionCall?: { name: string; args: Record<string, JsonValue> } }> };
+          }>;
+        };
+        const parts = json.candidates?.[0]?.content?.parts ?? [];
+        let textContent: string | null = null;
+        const tool_calls: Array<{ id: string; name: string; args: { [k: string]: JsonValue } }> = [];
+        for (const part of parts) {
+          if (part.text) textContent = (textContent ?? "") + part.text;
+          if (part.functionCall) {
+            tool_calls.push({
+              id: `call_${part.functionCall.name}_${Date.now()}`,
+              name: part.functionCall.name,
+              args: part.functionCall.args ?? {},
+            });
+          }
+        }
+        return { content: textContent, tool_calls };
+      }
+    } else {
+      // Lovable gateway — OpenAI-compatible format
+      const body: Record<string, unknown> = {
+        model: "google/gemini-3.1-flash-lite",
+        messages,
+        temperature: 0.3,
+      };
+      if (useTools) {
+        body.tools = TOOL_DEFS;
+        body.tool_choice = "auto";
+      }
+      res = await fetch(GATEWAY_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        const json = (await res.json()) as {
+          choices: Array<{ message: { content: string | null; tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }> } }>;
+        };
+        const msg = json.choices?.[0]?.message;
+        const tool_calls = (msg?.tool_calls ?? []).map((t) => {
+          let args: { [k: string]: JsonValue } = {};
+          try { args = t.function.arguments ? (JSON.parse(t.function.arguments) as { [k: string]: JsonValue }) : {}; } catch { args = {}; }
+          return { id: t.id, name: t.function.name, args };
+        });
+        return { content: msg?.content ?? null, tool_calls };
+      }
     }
 
     const text = await res.text();
-
     if ((res.status === 429 || res.status === 503) && attempt < maxRetries) {
-      // Sleep with exponential backoff and retry
       await new Promise((resolve) => setTimeout(resolve, delay));
       delay *= 2;
       continue;
     }
-
-    if (res.status === 429) {
-      throw new Error("AI rate limit reached. Please try again shortly.");
-    }
-    if (res.status === 503) {
-      throw new Error("Gemini model is currently experiencing high demand. Please try again in a few moments.");
-    }
-    if (res.status === 402) {
-      throw new Error("AI credits exhausted. Add credits in your workspace settings.");
-    }
+    if (res.status === 429) throw new Error("AI rate limit reached. Please try again shortly.");
+    if (res.status === 503) throw new Error("Gemini model is currently experiencing high demand. Please try again in a few moments.");
+    if (res.status === 402) throw new Error("AI credits exhausted. Add credits in your workspace settings.");
     throw new Error(`AI gateway error ${res.status}: ${text.slice(0, 300)}`);
   }
 
@@ -379,16 +461,19 @@ export const cookOrder = createServerFn({ method: "POST" })
 
     const systemPrompt = `You are ChefGenius, an autonomous AI cooking agent in a virtual kitchen.
 
-You receive a customer order and must prepare the dish autonomously by calling the available tools.
+You receive a customer order and must prepare the dish by calling the available tools.
+
+IMPORTANT - To minimize API calls, be efficient:
+- Call list_inventory only if you are unsure what's available (the starting inventory is already given).
+- In each response, call MULTIPLE tools at once if they can be done in sequence (e.g. chop + grill + toast in one turn).
+- Plan the full recipe mentally first, then execute all prep steps in one response, then combine and serve.
+- Always call serve() as the final tool call once the dish is assembled.
 
 Rules:
-- You may ONLY use ingredients currently present in the inventory. Call list_inventory if unsure.
-- Use tools step by step: chop, grill, fry, toast, bake, boil, combine, serve.
+- You may ONLY use ingredients currently present in the inventory.
 - Cooking transforms ingredients (e.g. grill(potato) -> "grilled patty", toast(bread) -> "toasted bun").
 - Use combine(ingredients=[...], result_name="burger") to assemble a named dish from prepared parts.
-- When the final dish is ready, call serve(dish=...) exactly once and then stop.
-- Think briefly between actions in your text content, but always make progress by calling a tool.
-- Do not hardcode; reason from the available ingredients.
+- Call serve(dish=...) exactly once when the final dish is ready.
 
 Available tools: list_inventory, chop, grill, fry, toast, bake, boil, combine, serve.`;
 
@@ -400,13 +485,13 @@ Available tools: list_inventory, chop, grill, fry, toast, bake, boil, combine, s
       },
     ];
 
-    const MAX_ITERS = 8;
+    const MAX_ITERS = 5;
     let iter = 0;
 
     while (iter < MAX_ITERS && !kitchen.served) {
       iter++;
-      // Pace requests to avoid rate limits — 1.5s between each API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // 3 second gap between calls to stay well within rate limits
+      if (iter > 1) await new Promise((resolve) => setTimeout(resolve, 3000));
 
       const { content, tool_calls } = await callGemini(messages, true);
 
