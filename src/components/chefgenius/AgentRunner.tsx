@@ -44,14 +44,14 @@ export function AgentRunner() {
 
         <div className="grid gap-6 lg:grid-cols-12">
           {/* Order panel */}
-          <div className="glass rounded-3xl p-8 lg:col-span-5">
-            <label className="text-xs font-medium uppercase tracking-widest text-foreground/50">Customer Order</label>
+          <div className="rounded-3xl border border-white/10 bg-[#1a0a0a] p-8 lg:col-span-5">
+            <label className="text-xs font-medium uppercase tracking-widest text-white/70">Customer Order</label>
             <input
               type="text"
               value={order}
               onChange={(e) => setOrder(e.target.value)}
               disabled={loading}
-              className="mt-3 w-full rounded-2xl border border-foreground/10 bg-white/80 px-5 py-4 font-display text-2xl outline-none focus:border-primary"
+              className="mt-3 w-full rounded-2xl border border-white/20 bg-[#2a0f0f] px-5 py-4 font-display text-2xl text-white outline-none placeholder:text-white/40 focus:border-primary"
               placeholder="e.g. Burger"
             />
             <div className="mt-4 flex flex-wrap gap-2">
@@ -61,7 +61,7 @@ export function AgentRunner() {
                   type="button"
                   onClick={() => setOrder(s)}
                   disabled={loading}
-                  className="rounded-full border border-foreground/10 bg-white/70 px-3 py-1.5 text-xs font-medium text-foreground/70 transition hover:border-primary hover:text-primary"
+                  className="rounded-full border border-primary/50 bg-primary/20 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-primary hover:text-white"
                 >
                   {s}
                 </button>
@@ -91,11 +91,11 @@ export function AgentRunner() {
 
             {result && (
               <div className="mt-8 space-y-4">
-                <div className="rounded-2xl bg-white/70 p-4">
-                  <div className="text-xs uppercase tracking-widest text-foreground/50">Final Inventory</div>
+                <div className="rounded-2xl border border-white/10 bg-[#2a0f0f] p-4">
+                  <div className="text-xs font-semibold uppercase tracking-widest text-primary">Final Inventory</div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {result.finalInventory.map((i) => (
-                      <span key={i} className="rounded-full bg-foreground/5 px-2.5 py-1 text-xs">{i}</span>
+                      <span key={i} className="rounded-full border border-primary/30 bg-primary/15 px-2.5 py-1 text-xs font-medium text-white">{i}</span>
                     ))}
                   </div>
                 </div>
