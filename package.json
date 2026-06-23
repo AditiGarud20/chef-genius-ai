@@ -9,7 +9,9 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "deploy": "npm run build && vercel deploy --prebuilt --yes",
+    "deploy:prod": "npm run build && vercel deploy --prebuilt --prod --yes"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
