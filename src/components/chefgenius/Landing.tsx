@@ -1,7 +1,47 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useScroll, useTransform, AnimatePresence, useInView, type Variants } from "framer-motion";
 import { AgentRunner } from "./AgentRunner";
+import SplitText from "@/components/ui/SplitText";
+import { GsapReveal, GradientMesh } from "@/components/ui/gsap-effects";
+import { useTheme } from "@/hooks/useTheme";
 
+/* ---------- Food Marquee Strip ---------- */
+
+const MARQUEE_ITEMS = [
+  { emoji: "🍔", name: "Burger" },
+  { emoji: "🍕", name: "Pizza" },
+  { emoji: "🍝", name: "Pasta" },
+  { emoji: "🥪", name: "Sandwich" },
+  { emoji: "🌮", name: "Taco" },
+  { emoji: "🍜", name: "Ramen" },
+  { emoji: "🥗", name: "Salad" },
+  { emoji: "🍣", name: "Sushi" },
+  { emoji: "🍛", name: "Curry" },
+  { emoji: "🥩", name: "Steak" },
+  { emoji: "🫕", name: "Fondue" },
+  { emoji: "🥙", name: "Wrap" },
+];
+
+function FoodMarquee() {
+  const doubled = [...MARQUEE_ITEMS, ...MARQUEE_ITEMS];
+  return (
+    <div className="relative overflow-hidden border-y border-foreground/8 bg-gradient-to-r from-primary/8 via-saffron/8 to-herb/8 py-5 backdrop-blur">
+      <motion.div
+        animate={{ x: ["0%", "-50%"] }}
+        transition={{ duration: 24, repeat: Infinity, ease: "linear" }}
+        className="flex w-max items-center"
+      >
+        {doubled.map((item, i) => (
+          <div key={i} className="flex shrink-0 items-center gap-3 px-8">
+            <span className="text-3xl">{item.emoji}</span>
+            <span className="font-display text-sm font-semibold uppercase tracking-widest text-foreground/40">{item.name}</span>
+            <span className="h-1.5 w-1.5 rounded-full bg-primary/50" />
+          </div>
+        ))}
+      </motion.div>
+    </div>
+  );
+}
 
 /* ---------- Shared bits ---------- */
 
@@ -10,7 +50,7 @@ const Container = ({ children, className = "" }: { children: React.ReactNode; cl
 );
 
 const SectionEyebrow = ({ children }: { children: React.ReactNode }) => (
-  <div className="inline-flex items-center gap-2 rounded-full border border-foreground/10 bg-white/60 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.18em] text-foreground/70 backdrop-blur">
+  <div className="inline-flex items-center gap-2 rounded-full border border-foreground/10 bg-foreground/5 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.18em] text-foreground/70 backdrop-blur">
     <span className="h-1.5 w-1.5 rounded-full bg-primary" />
     {children}
   </div>
@@ -48,11 +88,14 @@ function Reveal({ children, delay = 0, className = "" }: { children: React.React
 
 function Nav() {
   const [scrolled, setScrolled] = useState(false);
+  const { isDark, toggle } = useTheme();
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
   return (
     <motion.header
       initial={{ y: -40, opacity: 0 }}
@@ -76,10 +119,46 @@ function Nav() {
             <a className="hover:text-foreground" href="#simulation">Simulation</a>
             <a className="hover:text-foreground" href="#tech">Technology</a>
           </nav>
-          <a href="#simulation" className="hidden items-center gap-2 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background transition hover:scale-105 md:inline-flex">
-            Launch Agent
-            <span aria-hidden>→</span>
-          </a>
+          <div className="flex items-center gap-3">
+            {/* Dark mode toggle */}
+            <motion.button
+              onClick={toggle}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              aria-label="Toggle dark mode"
+              className="relative grid h-9 w-9 place-items-center rounded-full border border-foreground/15 bg-background/80 text-foreground backdrop-blur transition hover:border-primary/50 hover:bg-primary/10"
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                {isDark ? (
+                  <motion.span
+                    key="sun"
+                    initial={{ rotate: -90, opacity: 0, scale: 0.5 }}
+                    animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                    exit={{ rotate: 90, opacity: 0, scale: 0.5 }}
+                    transition={{ duration: 0.25 }}
+                    className="text-base"
+                  >
+                    ☀️
+                  </motion.span>
+                ) : (
+                  <motion.span
+                    key="moon"
+                    initial={{ rotate: 90, opacity: 0, scale: 0.5 }}
+                    animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                    exit={{ rotate: -90, opacity: 0, scale: 0.5 }}
+                    transition={{ duration: 0.25 }}
+                    className="text-base"
+                  >
+                    🌙
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.button>
+            <a href="#simulation" className="hidden items-center gap-2 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background transition hover:scale-105 md:inline-flex">
+              Launch Agent
+              <span aria-hidden>→</span>
+            </a>
+          </div>
         </div>
       </Container>
     </motion.header>
@@ -104,12 +183,8 @@ function Hero() {
 
   return (
     <section ref={ref} id="top" className="relative min-h-screen overflow-hidden pt-32">
-      {/* background blobs */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute -left-32 top-20 h-[480px] w-[480px] rounded-full bg-primary/25 blur-[120px]" />
-        <div className="absolute right-0 top-40 h-[420px] w-[420px] rounded-full bg-secondary/30 blur-[120px]" />
-        <div className="absolute bottom-0 left-1/3 h-[360px] w-[360px] rounded-full bg-warning/20 blur-[140px]" />
-      </div>
+      {/* animated colorful gradient mesh background */}
+      <GradientMesh />
 
       <Container>
         <motion.div style={{ y, opacity }} className="grid items-center gap-12 lg:grid-cols-12">
@@ -118,39 +193,49 @@ function Hero() {
             <Reveal delay={0}>
               <SectionEyebrow>Gemini · Autonomous Agent · Live Simulation</SectionEyebrow>
             </Reveal>
-            <h1 className="mt-8 font-display text-[64px] font-semibold leading-[0.95] tracking-tight text-foreground sm:text-[88px] md:text-[120px] lg:text-[140px]">
-              {"Watch AI".split("").map((c, i) => (
-                <motion.span
-                  key={`a-${i}`}
-                  initial={{ y: 80, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.8, delay: 0.1 + i * 0.04, ease: EASE }}
-                  className="inline-block"
-                >
-                  {c === " " ? "\u00A0" : c}
-                </motion.span>
-              ))}
-              <br />
-              {"Cook Like".split("").map((c, i) => (
-                <motion.span
-                  key={`b-${i}`}
-                  initial={{ y: 80, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.8, delay: 0.4 + i * 0.04, ease: EASE }}
-                  className="inline-block"
-                >
-                  {c === " " ? "\u00A0" : c}
-                </motion.span>
-              ))}
-              <br />
-              <motion.span
-                initial={{ y: 80, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.9, delay: 0.9, ease: EASE }}
-                className="inline-block italic gradient-text"
-              >
-                a Human.
-              </motion.span>
+            <h1 className="mt-8 font-display font-semibold leading-[0.95] tracking-tight text-foreground">
+              <SplitText
+                tag="span"
+                text="Watch AI"
+                className="block font-display font-semibold leading-[0.95] tracking-tight text-foreground text-[64px] sm:text-[88px] md:text-[120px] lg:text-[140px]"
+                delay={40}
+                duration={0.8}
+                ease="power3.out"
+                splitType="chars"
+                from={{ opacity: 0, y: 80, rotateX: -90 }}
+                to={{ opacity: 1, y: 0, rotateX: 0 }}
+                threshold={0.1}
+                rootMargin="0px"
+                textAlign="left"
+              />
+              <SplitText
+                tag="span"
+                text="Cook Like"
+                className="block font-display font-semibold leading-[0.95] tracking-tight text-foreground text-[64px] sm:text-[88px] md:text-[120px] lg:text-[140px]"
+                delay={40}
+                duration={0.8}
+                ease="power3.out"
+                splitType="chars"
+                from={{ opacity: 0, y: 80, rotateX: -90 }}
+                to={{ opacity: 1, y: 0, rotateX: 0 }}
+                threshold={0.1}
+                rootMargin="0px"
+                textAlign="left"
+              />
+              <SplitText
+                tag="span"
+                text="a Human."
+                className="block font-display font-semibold leading-[0.95] tracking-tight italic gradient-text-rainbow text-[64px] sm:text-[88px] md:text-[120px] lg:text-[140px]"
+                delay={40}
+                duration={0.9}
+                ease="power3.out"
+                splitType="chars"
+                from={{ opacity: 0, y: 80, scale: 0.5 }}
+                to={{ opacity: 1, y: 0, scale: 1 }}
+                threshold={0.1}
+                rootMargin="0px"
+                textAlign="left"
+              />
             </h1>
 
             <Reveal delay={6}>
@@ -202,10 +287,20 @@ function Hero() {
                   transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
                   className="absolute inset-20 rounded-full border-2 border-dashed border-primary/30"
                 />
+                <motion.div
+                  animate={{ rotate: -360 }}
+                  transition={{ duration: 28, repeat: Infinity, ease: "linear" }}
+                  className="absolute inset-12 rounded-full border-2 border-dotted border-herb/30"
+                />
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 55, repeat: Infinity, ease: "linear" }}
+                  className="absolute inset-2 rounded-full border border-dashed border-saffron/40"
+                />
                 <div className="absolute inset-0 grid place-items-center">
                   <motion.div
-                    animate={{ scale: [1, 1.05, 1] }}
-                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                    animate={{ scale: [1, 1.05, 1], rotate: [0, 5, -5, 0] }}
+                    transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
                     className="text-[140px] drop-shadow-xl"
                   >
                     🍔
@@ -244,12 +339,12 @@ function Hero() {
                 transition={{ delay: 1.6, duration: 0.6 }}
                 className="absolute -bottom-4 left-1/2 -translate-x-1/2"
               >
-                <div className="glass-dark flex items-center gap-3 rounded-full px-5 py-2.5 text-sm text-background">
+                <div className="glass-dark flex items-center gap-3 rounded-full px-5 py-2.5 text-sm text-foreground">
                   <span className="relative flex h-2 w-2">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
                   </span>
-                  Agent online · gemini-1.5-pro
+                  Agent online · gemini-3.1-flash-lite
                 </div>
               </motion.div>
             </div>
@@ -285,7 +380,7 @@ function MagneticButton({
       className={
         variant === "primary"
           ? "group inline-flex items-center gap-3 rounded-full bg-primary px-7 py-4 text-base font-medium text-primary-foreground shadow-[0_15px_40px_-10px_rgba(255,90,54,0.5)] transition hover:shadow-[0_25px_60px_-10px_rgba(255,90,54,0.7)]"
-          : "inline-flex items-center gap-3 rounded-full border border-foreground/15 bg-white/70 px-6 py-4 text-base font-medium text-foreground backdrop-blur transition hover:bg-white"
+          : "inline-flex items-center gap-3 rounded-full border border-foreground/15 bg-foreground/5 px-6 py-4 text-base font-medium text-foreground backdrop-blur transition hover:bg-foreground/10"
       }
     >
       {children}
@@ -462,7 +557,7 @@ function Kitchen() {
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true }}
                       transition={{ delay: i * 0.04 }}
-                      className="rounded-2xl bg-white/70 p-4"
+                      className="rounded-2xl bg-foreground/5 p-4"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -507,7 +602,7 @@ function Kitchen() {
                     viewport={{ once: true }}
                     transition={{ delay: i * 0.05 }}
                     whileHover={{ y: -4, boxShadow: "0 20px 40px -10px rgba(255,90,54,0.35)" }}
-                    className="group cursor-pointer rounded-2xl border border-foreground/10 bg-white/80 p-4 transition hover:border-primary/50"
+                    className="group cursor-pointer rounded-2xl border border-foreground/10 bg-foreground/5 p-4 transition hover:border-primary/50"
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-2xl">{t.icon}</span>
@@ -582,22 +677,22 @@ function Simulation() {
         <div className="mt-16 grid gap-6 lg:grid-cols-12">
           {/* terminal */}
           <Reveal className="lg:col-span-7">
-            <div className="glass-dark overflow-hidden rounded-3xl text-background">
-              <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+            <div className="glass-dark overflow-hidden rounded-3xl">
+              <div className="flex items-center justify-between border-b border-foreground/10 px-6 py-4">
                 <div className="flex items-center gap-2">
                   <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
                   <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
                   <span className="h-3 w-3 rounded-full bg-[#28c840]" />
                 </div>
-                <div className="font-mono text-xs text-background/60">agent.run(order="burger")</div>
-                <button onClick={restart} className="rounded-full bg-white/10 px-3 py-1 text-xs hover:bg-white/20">
+                <div className="font-mono text-xs text-foreground/60">agent.run(order="burger")</div>
+                <button onClick={restart} className="rounded-full bg-foreground/10 px-3 py-1 text-xs text-foreground/70 hover:bg-foreground/20">
                   ⟲ Restart
                 </button>
               </div>
               <div className="space-y-3 p-6 font-mono text-sm">
-                <div className="text-background/60">› parsing order…</div>
-                <div className="text-background/60">› analyzing inventory…</div>
-                <div className="text-background/60">› planning steps…</div>
+                <div className="text-foreground/50">› parsing order…</div>
+                <div className="text-foreground/50">› analyzing inventory…</div>
+                <div className="text-foreground/50">› planning steps…</div>
                 <div className="mt-4 space-y-2">
                   {SIM_STEPS.map((s, i) => {
                     const done = active > i;
@@ -608,22 +703,22 @@ function Simulation() {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: active >= i ? 1 : 0.3, x: 0 }}
                         className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${
-                          done ? "border-success/30 bg-success/10" : current ? "border-primary/40 bg-primary/10" : "border-white/10 bg-white/[0.03]"
+                          done ? "border-success/30 bg-success/10" : current ? "border-primary/40 bg-primary/10" : "border-foreground/10 bg-foreground/[0.03]"
                         }`}
                       >
                         <span className="text-lg">{s.emoji}</span>
                         <div className="flex-1">
-                          <div className="text-background">
+                          <div className="text-foreground">
                             <span className="text-primary">{s.tool}</span>
-                            <span className="text-background/60">(</span>
+                            <span className="text-foreground/50">(</span>
                             <span className="text-warning">{s.arg}</span>
-                            <span className="text-background/60">)</span>
+                            <span className="text-foreground/50">)</span>
                           </div>
-                          <div className="mt-1 text-xs text-background/60">
+                          <div className="mt-1 text-xs text-foreground/50">
                             → {done ? s.result : current ? <span className="inline-flex items-center gap-1">executing<DotDot /></span> : "pending"}
                           </div>
                         </div>
-                        <span className={`text-xs ${done ? "text-success" : current ? "text-warning" : "text-background/40"}`}>
+                        <span className={`text-xs ${done ? "text-success" : current ? "text-warning" : "text-foreground/40"}`}>
                           {done ? "✓ done" : current ? "● run" : "○ wait"}
                         </span>
                       </motion.div>
@@ -773,7 +868,7 @@ function Neural() {
                       transition={{ duration: 2.4, repeat: Infinity, delay: i * 0.2 }}
                       className="absolute inset-0 rounded-full bg-primary"
                     />
-                    <div className="relative rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-medium backdrop-blur">
+                    <div className="relative rounded-full border border-foreground/20 bg-foreground/10 px-4 py-2 text-xs font-medium text-foreground backdrop-blur">
                       {n.label}
                     </div>
                   </div>
@@ -809,8 +904,8 @@ function StructuredOutputs() {
         <div className="mt-14 grid gap-6 md:grid-cols-3">
           {JSON_CARDS.map((c, i) => (
             <Reveal key={i} delay={i}>
-              <motion.div whileHover={{ y: -6 }} className="glass-dark overflow-hidden rounded-3xl text-background">
-                <div className="flex items-center justify-between border-b border-white/10 px-5 py-3 text-xs text-background/60">
+              <motion.div whileHover={{ y: -6 }} className="glass-dark overflow-hidden rounded-3xl text-foreground">
+                <div className="flex items-center justify-between border-b border-foreground/10 px-5 py-3 text-xs text-foreground/50">
                   <span className="font-mono">tool.output.json</span>
                   <span className="rounded-full bg-success/20 px-2 py-0.5 text-success">200 OK</span>
                 </div>
@@ -848,12 +943,12 @@ function Verification() {
           <Reveal delay={1}>
             <div className="glass relative rounded-3xl p-8">
               <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-2xl bg-white/70 p-5">
+                <div className="rounded-2xl bg-foreground/5 p-5">
                   <div className="text-xs uppercase tracking-widest text-foreground/50">Customer order</div>
                   <div className="mt-3 text-5xl">🍔</div>
                   <div className="mt-3 font-display text-2xl font-semibold">Burger</div>
                 </div>
-                <div className="rounded-2xl bg-white/70 p-5">
+                <div className="rounded-2xl bg-foreground/5 p-5">
                   <div className="text-xs uppercase tracking-widest text-foreground/50">Prepared dish</div>
                   <div className="mt-3 text-5xl">🧀🍔</div>
                   <div className="mt-3 font-display text-2xl font-semibold">Cheeseburger</div>
@@ -918,7 +1013,7 @@ function Features() {
             <Reveal key={f.t} delay={i}>
               <motion.div
                 whileHover={{ y: -6 }}
-                className="group relative h-full overflow-hidden rounded-3xl border border-foreground/10 bg-white p-8 transition hover:border-primary/50 hover:shadow-[0_30px_60px_-20px_rgba(255,90,54,0.4)]"
+                className="group relative h-full overflow-hidden rounded-3xl border border-foreground/10 bg-card p-8 transition hover:border-primary/50 hover:shadow-[0_30px_60px_-20px_rgba(255,90,54,0.4)]"
               >
                 <div className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-2xl text-white">{f.i}</div>
                 <h3 className="mt-6 font-display text-2xl font-semibold">{f.t}</h3>
@@ -981,47 +1076,87 @@ function Tech() {
 /* ---------- Gallery ---------- */
 
 const DISHES = [
-  { name: "Classic Burger", emoji: "🍔", tag: "8 steps · 5 ingredients" },
-  { name: "Margherita Pizza", emoji: "🍕", tag: "12 steps · 6 ingredients" },
-  { name: "Creamy Pasta", emoji: "🍝", tag: "9 steps · 7 ingredients" },
-  { name: "Club Sandwich", emoji: "🥪", tag: "6 steps · 5 ingredients" },
+  {
+    name: "Classic Burger",
+    emoji: "🍔",
+    tag: "8 steps · 5 ingredients",
+    img: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&q=80",
+    color: "from-amber-100 to-orange-100",
+  },
+  {
+    name: "Margherita Pizza",
+    emoji: "🍕",
+    tag: "12 steps · 6 ingredients",
+    img: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80",
+    color: "from-red-50 to-orange-50",
+  },
+  {
+    name: "Creamy Pasta",
+    emoji: "🍝",
+    tag: "9 steps · 7 ingredients",
+    img: "https://images.unsplash.com/photo-1555949258-eb67b1ef0ceb?w=600&q=80",
+    color: "from-yellow-50 to-amber-50",
+  },
+  {
+    name: "Club Sandwich",
+    emoji: "🥪",
+    tag: "6 steps · 5 ingredients",
+    img: "https://images.unsplash.com/photo-1528736235302-52922df5c122?w=600&q=80",
+    color: "from-green-50 to-emerald-50",
+  },
 ];
 
 function Gallery() {
   return (
     <section className="relative py-32">
       <Container>
-        <Reveal>
+        <GsapReveal variant="up">
           <SectionEyebrow>Project Gallery</SectionEyebrow>
           <h2 className="mt-6 max-w-3xl font-display text-5xl font-semibold leading-tight md:text-7xl">
-            Dishes the agent <span className="italic gradient-text">has cooked.</span>
+            Dishes the agent <span className="italic gradient-text-rainbow">has cooked.</span>
           </h2>
-        </Reveal>
+        </GsapReveal>
 
-        <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <GsapReveal variant="up" stagger className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {DISHES.map((d, i) => (
-            <Reveal key={d.name} delay={i}>
-              <motion.div whileHover={{ y: -8 }} className="group cursor-pointer overflow-hidden rounded-3xl bg-white shadow-[0_20px_60px_-20px_rgba(17,17,17,0.15)]">
-                <div className="relative aspect-[4/5] overflow-hidden bg-gradient-to-br from-[#fff3ee] to-[#ffe0d2]">
-                  <motion.div
-                    whileHover={{ scale: 1.15, rotate: 4 }}
-                    transition={{ duration: 0.6 }}
-                    className="absolute inset-0 grid place-items-center text-[180px]"
-                  >
-                    {d.emoji}
-                  </motion.div>
-                  <div className="absolute left-4 top-4 rounded-full bg-white/80 px-3 py-1 text-xs font-medium backdrop-blur">
-                    0{i + 1} · Verified
-                  </div>
+            <motion.div
+              key={d.name}
+              whileHover={{ y: -10 }}
+              transition={{ type: "spring", stiffness: 200, damping: 18 }}
+              className="gsap-child group cursor-pointer overflow-hidden rounded-3xl bg-card shadow-[0_20px_60px_-20px_rgba(17,17,17,0.15)]"
+            >
+              <div className={`relative aspect-[4/5] overflow-hidden bg-gradient-to-br ${d.color}`}>
+                <motion.img
+                  src={d.img}
+                  alt={d.name}
+                  loading="lazy"
+                  className="h-full w-full object-cover"
+                  whileHover={{ scale: 1.08 }}
+                  transition={{ duration: 0.6 }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+                <div className="absolute left-4 top-4 rounded-full bg-foreground/80 px-3 py-1 text-xs font-medium text-background backdrop-blur">
+                  0{i + 1} · Verified ✓
                 </div>
-                <div className="p-6">
-                  <div className="font-display text-2xl font-semibold">{d.name}</div>
-                  <div className="mt-1 text-sm text-foreground/55">{d.tag}</div>
+                <motion.div
+                  animate={{ y: [0, -8, 0], rotate: [0, 4, -4, 0] }}
+                  transition={{ duration: 4 + i, repeat: Infinity, ease: "easeInOut" }}
+                  className="absolute bottom-4 right-4 text-4xl drop-shadow-lg"
+                >
+                  {d.emoji}
+                </motion.div>
+              </div>
+              <div className="p-6">
+                <div className="font-display text-2xl font-semibold">{d.name}</div>
+                <div className="mt-1 text-sm text-foreground/55">{d.tag}</div>
+                <div className="mt-4 flex items-center gap-2 text-xs text-foreground/40 transition group-hover:text-primary">
+                  <span>View recipe</span>
+                  <motion.span animate={{ x: [0, 4, 0] }} transition={{ duration: 1.5, repeat: Infinity }}>→</motion.span>
                 </div>
-              </motion.div>
-            </Reveal>
+              </div>
+            </motion.div>
           ))}
-        </div>
+        </GsapReveal>
       </Container>
     </section>
   );
@@ -1032,9 +1167,7 @@ function Gallery() {
 function FinalCTA() {
   return (
     <section className="relative overflow-hidden py-32">
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute left-1/2 top-1/2 h-[600px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/15 blur-[140px]" />
-      </div>
+      <GradientMesh />
       <Container>
         <div className="relative">
           <motion.div
@@ -1113,6 +1246,7 @@ export function ChefGeniusLanding() {
       <Nav />
       <main>
         <Hero />
+        <FoodMarquee />
         <About />
         <HowItThinks />
         <Kitchen />
@@ -1125,6 +1259,7 @@ export function ChefGeniusLanding() {
         <Features />
         <Tech />
         <Gallery />
+        <FoodMarquee />
         <FinalCTA />
       </main>
       <Footer />
